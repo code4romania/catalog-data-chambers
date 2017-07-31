@@ -37,7 +37,8 @@ class CdepCareerHistory(scrapy.Spider):
 
     def get_politician_infos(self, response: Response) -> Coroutine:
         politician_name = response.xpath('.//*[@id="olddiv"]//*//*[@class="boxTitle"]//h1//text()').extract_first()
-        political_party_name = response.xpath('//*[@id="olddiv"]/div/div[3]/h3//text()').extract_first()
+        political_party_name = response.xpath('.//*[@id="olddiv"]//*//div//*//table//*//td//text()').extract()
+        political_party_name = political_party_name[-1]
         yield items.CareerHistoryItem(politician_name=politician_name, url=response.url,
                                       political_party_name=political_party_name)
 
