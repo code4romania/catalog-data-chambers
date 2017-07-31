@@ -2,3 +2,10 @@
 *.pyc
 *.swp
 __pycache__/
+.idea/
+/pip-selfcheck.json
+/.Python
+/bin/
+/include/
+/lib/
+/catpol/settings.py
