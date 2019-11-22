@@ -1,6 +1,7 @@
 import json
 
 import scrapy
+import xmltodict
 
 import catpol.loaders as loaders
 import catpol.items as items
@@ -17,46 +18,37 @@ class EuroSpider(scrapy.Spider):
 
     name = 'euro'
 
+    BASE_URL = 'http://www.europarl.europa.eu/meps/en/'
+    BASE_IMAGE_URL = 'http://www.europarl.europa.eu/mepphoto/'
+
     def start_requests(self):
-        url = 'http://www.europarl.europa.eu/meps/en/json/getDistricts.html'
-        yield http.Reqo(url=url, callback=self.parse_json)
+        url = 'http://www.europarl.europa.eu/meps/en/full-list/xml'
+        yield http.Reqo(url=url, callback=self.parse_xml)
 
-    def parse_json(self, response):
-        json_obj = json.loads(response.body_as_unicode())
+    def parse_xml(self, response):
+        xml_dict = xmltodict.parse(response.body)
 
-        romania = [person for person in json_obj['result']
-                                               if person['countryCode'] == 'ro']
+        romania = [person for person in xml_dict['meps']['mep']
+                   if person['country'] == 'Romania']
 
         for dude in romania:
-            url = response.urljoin(dude['detailUrl'])
+            url = self.BASE_URL + dude['id']
             req = http.Reqo(url=url, callback=self.parse_detail)
-            req.meta['party'] = dude['nationalPoliticalGroupLabel']
+            req.meta['party'] = dude['nationalPoliticalGroup']
+            req.meta['euroGroup'] = dude['politicalGroup']
+            req.meta['picture'] = self.BASE_IMAGE_URL + dude['id'] + '.jpg'
             yield req
 
     def parse_detail(self, response):
-        personal_data_loader = loaders.PersonalDataLoader(
-                                                       items.PersonalDataItem())
+        personal_data_loader = loaders.PersonalDataLoader(items.PersonalDataItem())
 
         personal_data_loader.add_value('party', response.meta['party'])
+        personal_data_loader.add_value('eurogroup', response.meta['euroGroup'])
+        personal_data_loader.add_value('picture', response.meta['picture'])
 
-        name = ' '.join(response.css('.mep_name').xpath('.//text()').extract()
-                                                                       ).strip()
-        personal_data_loader.add_value('name', name)
-
-        more_info = ' '.join([x.strip() for x in response.css(
-                            '.more_info').xpath('.//text()').extract()]).strip()
-
-        cln = more_info.find(':')
-        cm = more_info.find(',')
-
-        if cln >= 0 and cm >= 0:
-            bday = more_info[cln + 1:cm].strip()
-            bplace = more_info[cm + 1:].strip()
-            personal_data_loader.add_value('birthdate', bday)
-            personal_data_loader.add_value('birthplace', bplace)
-
-        group = response.css('li.group::text').extract_first().strip()
-        personal_data_loader.add_value('eurogroup', group)
+        personal_data_loader.add_value('name', response.css('.ep_name.erpl-member-card-full-member-name::text').get())
+        personal_data_loader.add_value('birthdate', response.css('#birthDate::text').get())
+        personal_data_loader.add_value('birthplace', response.css('#birthPlace::text').get())
 
         personal_data_loader.add_value('url', response.url)
 
